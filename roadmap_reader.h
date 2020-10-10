@@ -6,11 +6,11 @@
 struct ExistingRoadmapMove {
 	enum Action moveType;
 	int numValues;
-	enum Sort_Type item1;
-	enum Sort_Type item2;
+	enum Type_Sort item1;
+	enum Type_Sort item2;
 	enum HandleOutput handleOutput;
-	enum Sort_Type output;
-	enum Sort_Type toss;
+	enum Type_Sort output;
+	enum Type_Sort toss;
 	struct CH5* ch5;
 };
 
