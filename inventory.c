@@ -11,7 +11,6 @@
 
 typedef enum Alpha_Sort Alpha_Sort;
 typedef enum Type_Sort Type_Sort;
-typedef struct ItemName ItemName;
 
 Alpha_Sort items[] = {
 	Mushroom_a,
@@ -335,8 +334,26 @@ int indexOfItemInInventory(struct Inventory inventory, enum Type_Sort item) {
  * Access the itemNames array to associate an item's a_key with its
  * string counterpart. Also handles the case of a null item.
  -------------------------------------------------------------------*/
-char *getItemName(Type_Sort t_key) {
+char *getItemName(enum Type_Sort t_key) {
 	return itemNames[t_key];
+}
+
+/*-------------------------------------------------------------------
+ * Function 	: getItemFromName
+ * Inputs	: char* itemName
+ * Outputs	: enum TypeSort item
+ *
+ * Gets an item by its string-represented name. Handles NULL case by 
+ * simply returning -1.
+ -------------------------------------------------------------------*/
+enum Type_Sort getItemFromName(char* itemName) {
+	if (itemName == NULL)
+		return -1;
+
+	for (int i = 0; i < NUM_ITEMS; i++)
+		if (strcmp(itemNames[i], itemName) == 0)
+			return i;
+	return -1;
 }
 
 /*-------------------------------------------------------------------

@@ -8,6 +8,7 @@
 #include "logger.h"
 #include <time.h>
 #include <string.h>
+#include "roadmap_reader.h"
 
 #define NUM_RECIPES 58 			// Including Chapter 5 representation
 #define CHOOSE_2ND_INGREDIENT_FRAMES 56 	// Penalty for choosing a 2nd item
@@ -2222,6 +2223,7 @@ struct Result calculateOrder(int ID) {
 	int debug = getConfigInt("debug");
 	// The user may disable all randomization but not be debugging.
 	int freeRunning = !debug && !randomise && !select;
+	int canUseExistingRoadmap = 1;
 	int branchInterval = getConfigInt("branchLogInterval");
 	int total_dives = 0;
 	struct BranchPath *curNode = NULL; // Deepest node at any particular point
@@ -2363,29 +2365,76 @@ struct Result calculateOrder(int ID) {
 
 				// Allow the user to choose their path when in debugging mode
 				else if (debug && !freeRunning) {
-					FILE *fp = stdout;
-					for (int move = 0; move < curNode->numLegalMoves; ++move) {
-						fprintf(fp, "%d - ", move);
-						printNodeDescription(curNode->legalMoves[move], fp);
-						fprintf(fp, "\n");
-					}
+					FILE* fp = stdout;
+					if (!isRoadmapMoveAvailable()) {
+						for (int move = 0; move < curNode->numLegalMoves; ++move) {
+							fprintf(fp, "%d - ", move);
+							printNodeDescription(curNode->legalMoves[move], fp);
+							fprintf(fp, "\n");
+						}
 
-					fprintf(fp, "%d - Run freely\n", curNode->numLegalMoves);
+						fprintf(fp, "%d - Run freely\n", curNode->numLegalMoves);
 
-					printf("Which move would you like to perform? ");
-					int moveToExplore;
-					scanf("%d", &moveToExplore);
-					fprintf(fp, "\n");
+						if (canUseExistingRoadmap == 1)
+							fprintf(fp, "%d - Read an existing roadmap from the results directory\n", curNode->numLegalMoves + 1);
 
-					if (moveToExplore == curNode->numLegalMoves) {
-						freeRunning = 1;
-						handleSelectAndRandom(curNode, select, randomise);
+						printf("Which move would you like to perform? ");
+
+						int moveToExplore;
+						scanf("%d", &moveToExplore);
+						printf("\n");
+
+						if (moveToExplore == curNode->numLegalMoves) {
+							// Start freerunning
+							freeRunning = 1;
+							handleSelectAndRandom(curNode, select, randomise);
+						}
+						else if (canUseExistingRoadmap == 1 && moveToExplore == curNode->numLegalMoves + 1) {
+							// Trying to read a roadmap
+							getchar(); // Clear the newline at the end of the input buffer
+							FILE* roadmapFp = NULL;
+							while (roadmapFp == NULL) {
+								printf("Enter the roadmap file name in the results directory: ");
+								char buffer[100];
+								if (fgets(buffer, sizeof(buffer), stdin) == NULL) {
+									printf("\nAn error occurred while reading your input. Please try again.\n");
+									continue;
+								}
+								size_t ln = strlen(buffer) - 1;
+								if (buffer[ln] == '\n')
+									buffer[ln] = 0;
+
+								char path[110] = "results/";
+								strcat(path, buffer);
+								roadmapFp = fopen(path, "r");
+								if (roadmapFp == NULL)
+									printf("\nInvalid file specified. Please try again.\n");
+
+								printf("How many moves do you want to read? ");
+								int moveCount;
+								scanf("%d", &moveCount);
+								printf("\n");
+
+								if (moveCount <= 0 || !readRoadmap(roadmapFp, moveCount)) {
+									fclose(roadmapFp);
+									printf("Invalid roadmap detected. Did you provide an invalid number of moves? Please try again.\n");
+								}
+							}
+							
+							nextRoadmapLegalMoveIndex(curNode);
+						}
+						else {
+							// Take the legal move at nextMoveIndex and move it to the front of the array
+							struct BranchPath* nextMove = curNode->legalMoves[0];
+							curNode->legalMoves[0] = curNode->legalMoves[moveToExplore];
+							curNode->legalMoves[moveToExplore] = nextMove;
+						}
+
+						// Can't use an existing roadmap anymore after the first debug move
+						canUseExistingRoadmap = 0;
 					}
 					else {
-						// Take the legal move at nextMoveIndex and move it to the front of the array
-						struct BranchPath *nextMove = curNode->legalMoves[0];
-						curNode->legalMoves[0] = curNode->legalMoves[moveToExplore];
-						curNode->legalMoves[moveToExplore] = nextMove;
+						nextRoadmapLegalMoveIndex(curNode);
 					}
 				}
 					
@@ -2401,7 +2450,6 @@ struct Result calculateOrder(int ID) {
 				curNode->next = curNode->legalMoves[0];
 				curNode = curNode->next;
 				stepIndex++;
-				
 			}
 			else {
 				if (curNode->numLegalMoves == 0) {
@@ -2495,5 +2543,71 @@ struct Result calculateOrder(int ID) {
 			exit(1);
 		}*/
 		
+	}
+}
+
+void nextRoadmapLegalMoveIndex(struct BranchPath* curNode) {
+	// We are exploring an existing roadmap
+	struct ExistingRoadmapMove* roadmapMove = getNextRoadmapMove();
+
+	// Find the desired roadmap move out of the existing legal moves
+	int moveToExplore = -1;
+	for (int move = 0; move < curNode->numLegalMoves; ++move) {
+		struct BranchPath* legalMove = curNode->legalMoves[move];
+		struct MoveDescription desc = legalMove->description;
+
+		// Make sure the actions match up
+		if (desc.action != roadmapMove->moveType)
+			continue;
+
+		// Cooking an item
+		if (roadmapMove->moveType == Cook) {
+			struct Cook* cook = desc.data;
+			if (cook->numItems != roadmapMove->numValues 
+				|| cook->item1 != roadmapMove->item1
+				|| cook->item2 != roadmapMove->item2
+				|| cook->handleOutput != roadmapMove->handleOutput
+				|| cook->output != roadmapMove->output
+				|| cook->toss != roadmapMove->toss)
+				continue;
+		}
+		// Chapter 5 break
+		else if (roadmapMove->moveType == Ch5) {
+			struct CH5* moveCh5 = roadmapMove->ch5;
+			struct CH5* descCh5 = desc.data;
+
+			if (moveCh5->indexDriedBouquet != descCh5->indexDriedBouquet
+				|| moveCh5->indexCoconut != descCh5->indexCoconut
+				|| moveCh5->ch5Sort != descCh5->ch5Sort
+				|| moveCh5->indexKeelMango != descCh5->indexKeelMango
+				|| moveCh5->indexCourageShell != descCh5->indexCourageShell
+				|| moveCh5->indexThunderRage != descCh5->indexThunderRage
+				|| moveCh5->lateSort != descCh5->lateSort)
+				continue;
+		}
+
+		// Everything matches up
+		moveToExplore = move;
+		break;
+	}
+
+	if (moveToExplore == -1) {
+		printf("\nReached a point in the existing roadmap where paths diverge. Is this roadmap valid?\n");
+		printf("Press enter to continue debugging from the current point.\n\n");
+		getchar();
+		invalidateRoadmap();
+	}
+	else {
+		// Print current progress
+		printRoadmapProgress();
+		printNodeDescription(curNode->legalMoves[moveToExplore], stdout);
+		printf("\n");
+		if (!isRoadmapMoveAvailable())
+			printf("\n");
+
+		// Take the legal move at nextMoveIndex and move it to the front of the array
+		struct BranchPath* nextMove = curNode->legalMoves[0];
+		curNode->legalMoves[0] = curNode->legalMoves[moveToExplore];
+		curNode->legalMoves[moveToExplore] = nextMove;
 	}
 }

@@ -151,6 +151,7 @@
     <ClCompile Include="..\log.c" />
     <ClCompile Include="..\logger.c" />
     <ClCompile Include="..\recipes.c" />
+    <ClCompile Include="..\roadmap_reader.c" />
     <ClCompile Include="..\start.c" />
   </ItemGroup>
   <ItemGroup>
@@ -162,13 +163,13 @@
     <ClInclude Include="..\log.h" />
     <ClInclude Include="..\logger.h" />
     <ClInclude Include="..\recipes.h" />
+    <ClInclude Include="..\roadmap_reader.h" />
     <ClInclude Include="..\start.h" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="..\config.txt">
       <DeploymentContent>true</DeploymentContent>
     </Text>
-    <Text Include="..\inventory.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

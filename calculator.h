@@ -175,5 +175,6 @@ struct BranchPath* initializeRoot();
 void periodicGithubCheck();
 void logIterations(int ID, int stepIndex, struct BranchPath * curNode, int iterationCount, int level);
 struct Result calculateOrder(int ID);
+void nextRoadmapLegalMoveIndex(struct BranchPath* curNode);
 
 #endif
