@@ -2407,8 +2407,10 @@ struct Result calculateOrder(int ID) {
 								char path[110] = "results/";
 								strcat(path, buffer);
 								roadmapFp = fopen(path, "r");
-								if (roadmapFp == NULL)
+								if (roadmapFp == NULL) {
 									printf("\nInvalid file specified. Please try again.\n");
+									continue;
+								}
 
 								printf("How many moves do you want to read? ");
 								int moveCount;
@@ -2417,6 +2419,7 @@ struct Result calculateOrder(int ID) {
 
 								if (moveCount <= 0 || !readRoadmap(roadmapFp, moveCount)) {
 									fclose(roadmapFp);
+									roadmapFp = NULL;
 									printf("Invalid roadmap detected. Did you provide an invalid number of moves? Please try again.\n");
 								}
 							}

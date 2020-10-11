@@ -40,7 +40,9 @@ int readRoadmap(FILE* fp, int moves) {
 		struct RoadmapLineSearchResult* extraSearchResult = findBetween(buffer, "<", ">", 1);
 
 
-		// There are 3 possible cases that we need to handle, Toss, Autoplace, and TossOther
+		// There are 5 possible cases that we need to handle.
+		// 3 of them are cooking: Toss, Autoplace, and TossOther
+		// 1 is the Chapter 5 break, and the last is sorting
 		// Each has a different combination of the above search results
 		struct ExistingRoadmapMove* move = &existingRoadmapMoves[moveIndex];
 
